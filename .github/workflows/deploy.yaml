@@ -1,0 +1,81 @@
+name: Build and Deploy Website
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# Only one Pages deployment at a time; queued runs wait instead of being cancelled.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate website
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository code
+        uses: actions/checkout@v4
+
+      - name: Check index.html exists
+        run: test -f index.html
+
+      - name: Check required HTML content
+        run: |
+          grep -q "<!DOCTYPE html>" index.html
+          grep -q "<title>" index.html
+          grep -q "GitHub Actions Demo" index.html
+
+      - name: Show validation result
+        run: echo "Website validation passed"
+
+  build:
+    name: Build website
+    needs: validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository code
+        uses: actions/checkout@v4
+
+      - name: Prepare website files
+        run: |
+          mkdir site
+          cp index.html site/index.html
+
+      - name: Upload website artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Deploy website
+        id: deployment
+        uses: actions/deploy-pages@v4
